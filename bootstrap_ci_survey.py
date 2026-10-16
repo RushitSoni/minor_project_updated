@@ -8,8 +8,9 @@ Output: folder `bootstrap_results/` containing
           - per_class_f1.csv           (per-class F1 with 95% CI)
           - per_class_report.csv       (precision / recall / F1 / support per class)
           - confusion_matrix.csv       (counts)
-          - baseline_comparison.csv    (model vs always-LOW baseline, paired bootstrap + McNemar)
-          - bootstrap_samples.csv      (all 10,000 resampled metric values, for re-plotting)
+          - baseline_comparison.csv    (model vs always-LOW baseline, paired bootstrap + McNemar;
+                                        now also Weighted F1 and per-class F1 rows)
+          - bootstrap_samples.csv      (all resampled metric values, for re-plotting)
           - results.json               (everything above in one file)
           - report.txt                 (human-readable summary, same as console output)
           - bootstrap_distributions.png (histograms of key metrics with CIs)
@@ -18,7 +19,6 @@ Run:
     pip install numpy pandas scikit-learn scipy matplotlib
     python bootstrap_ci_survey.py
     python bootstrap_ci_survey.py --csv path/to/file.csv --n_boot 10000 --seed 42
-    main_Code\data\predictions\privacy_v7_epoch3\survey_with_label3_predictions.csv
 """
 import argparse
 import json
@@ -77,6 +77,7 @@ def all_metrics(yt, yp):
 point = all_metrics(y_true, y_pred)
 point_pc = f1_score(y_true, y_pred, average=None, labels=labels, zero_division=0)
 base_point = all_metrics(y_true, y_base)
+base_pc = f1_score(y_true, y_base, average=None, labels=labels, zero_division=0)   # NEW
 
 # ------------------------- BOOTSTRAP -------------------------
 rng = np.random.default_rng(args.seed)
@@ -85,6 +86,8 @@ boot_pc = np.empty((args.n_boot, 3))
 boot_gain_macro = np.empty(args.n_boot)
 boot_gain_acc = np.empty(args.n_boot)
 boot_gain_qwk = np.empty(args.n_boot)
+boot_gain_wf1 = np.empty(args.n_boot)                 # NEW
+boot_gain_pc = np.empty((args.n_boot, 3))             # NEW
 
 for b in range(args.n_boot):
     idx = rng.integers(0, n, n)                       # resample WITH replacement
@@ -97,6 +100,9 @@ for b in range(args.n_boot):
     boot_gain_macro[b] = m["macro_f1"] - mb["macro_f1"]
     boot_gain_acc[b] = m["accuracy"] - mb["accuracy"]
     boot_gain_qwk[b] = m["qwk"] - mb["qwk"]
+    # NEW: paired gains for weighted F1 and per-class F1
+    boot_gain_wf1[b] = m["weighted_f1"] - mb["weighted_f1"]
+    boot_gain_pc[b] = boot_pc[b] - f1_score(yt, yb, average=None, labels=labels, zero_division=0)
 
 def ci(arr):
     lo, hi = np.percentile(arr, [100 * ALPHA / 2, 100 * (1 - ALPHA / 2)])
@@ -137,12 +143,17 @@ if b_cnt + c_cnt > 0:
 else:
     mcnemar_stat, mcnemar_p = float("nan"), float("nan")
 
-base_rows = []
-for name, pt_model, pt_base, gain in [
+# NEW: extended comparison list (original 3 + weighted F1 + per-class F1)
+comparisons = [
     ("Macro F1", point["macro_f1"], base_point["macro_f1"], boot_gain_macro),
     ("Accuracy", point["accuracy"], base_point["accuracy"], boot_gain_acc),
     ("Quadratic weighted kappa", point["qwk"], base_point["qwk"], boot_gain_qwk),
-]:
+    ("Weighted F1", point["weighted_f1"], base_point["weighted_f1"], boot_gain_wf1),
+] + [(f"F1 ({c})", point_pc[i], base_pc[i], boot_gain_pc[:, i])
+     for i, c in enumerate(CLASS_NAMES)]
+
+base_rows = []
+for name, pt_model, pt_base, gain in comparisons:
     lo, hi = ci(gain)
     base_rows.append({"metric": name, "model": pt_model, "baseline_always_LOW": pt_base,
                       "gain_point": pt_model - pt_base, "gain_ci_low": lo, "gain_ci_high": hi,
@@ -166,6 +177,10 @@ samples_df = pd.DataFrame({
     "qwk": boot["qwk"], "accuracy": boot["accuracy"],
     "f1_LOW": boot_pc[:, 0], "f1_MEDIUM": boot_pc[:, 1], "f1_HIGH": boot_pc[:, 2],
     "gain_macro_f1_vs_baseline": boot_gain_macro,
+    "gain_weighted_f1_vs_baseline": boot_gain_wf1,    # NEW
+    "gain_f1_LOW_vs_baseline": boot_gain_pc[:, 0],    # NEW
+    "gain_f1_MEDIUM_vs_baseline": boot_gain_pc[:, 1], # NEW
+    "gain_f1_HIGH_vs_baseline": boot_gain_pc[:, 2],   # NEW
 })
 samples_df.to_csv(f"{out}/bootstrap_samples.csv", index=False)
 

@@ -22,5 +22,9 @@ MODEL vs ALWAYS-LOW BASELINE (paired bootstrap of the difference)
   Macro F1                  : model 0.630 vs baseline 0.245 | gain 0.385  95% CI [0.307, 0.456]  (excludes 0 -> significant)
   Accuracy                  : model 0.728 vs baseline 0.580 | gain 0.148  95% CI [0.084, 0.212]  (excludes 0 -> significant)
   Quadratic weighted kappa  : model 0.642 vs baseline 0.000 | gain 0.642  95% CI [0.548, 0.728]  (excludes 0 -> significant)
+  Weighted F1               : model 0.718 vs baseline 0.426 | gain 0.293  95% CI [0.219, 0.363]  (excludes 0 -> significant)
+  F1 (LOW)                  : model 0.858 vs baseline 0.734 | gain 0.124  95% CI [0.075, 0.176]  (excludes 0 -> significant)
+  F1 (MEDIUM)               : model 0.573 vs baseline 0.000 | gain 0.573  95% CI [0.468, 0.667]  (excludes 0 -> significant)
+  F1 (HIGH)                 : model 0.459 vs baseline 0.000 | gain 0.459  95% CI [0.290, 0.604]  (excludes 0 -> significant)
 
 McNemar test (model vs baseline correctness): b=55, c=18, chi2=17.753, p=2.515e-05
